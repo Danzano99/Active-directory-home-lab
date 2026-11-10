@@ -80,6 +80,7 @@ During the development of this lab, several issues required investigation:
 **FSRM Management Console Failure** — Investigated errors involving the FSRM MMC snap-in and PowerShell quota enumeration.
 
 **FSRM File Screening** — Identified a file-screening rule that prevented an administrator from restoring a JPG to a shared folder despite sufficient NTFS permissions.
+[FSRM File Screening Troubleshooting](troubleshooting/fsrm-file-screening.md)
 
 Detailed troubleshooting reports will be added as separate Markdown documents.
 
