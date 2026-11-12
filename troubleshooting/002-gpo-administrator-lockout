@@ -1,0 +1,146 @@
+# Incident Report 002 — Group Policy Restricting Domain Administrator Access
+
+**Project:** Active Directory Home Lab  
+**Environment:** Windows Server 2022 | Active Directory Domain Services  
+**Domain:** Turtle.local  
+**Incident Type:** Group Policy Misconfiguration  
+**Severity:** Moderate — Isolated Lab Environment  
+**Status:** Resolved  
+**Root Cause:** Confirmed — Incorrect GPO scope
+
+---
+
+## 1. Executive Summary
+
+While configuring Group Policy Objects (GPOs) in an Active Directory home lab, I unintentionally applied a Windows Settings restriction to the Domain Administrator account.
+
+The policy was intended to prevent standard employees from accessing Control Panel and Windows Settings. However, it was linked at the domain root, allowing the restriction to affect accounts beyond the intended users.
+
+After identifying the scope of the policy, I removed the unwanted GPO link and refreshed Group Policy. Administrative access to Windows Settings was restored.
+
+The incident demonstrated the importance of understanding GPO scope, inheritance, and administrative account separation.
+
+## 2. Environment
+
+| Component | Configuration |
+|---|---|
+| Operating system | Windows Server 2022 |
+| Directory services | Active Directory Domain Services |
+| Domain | Turtle.local |
+| Management console | Group Policy Management |
+| Affected account | Domain Administrator |
+| Affected functionality | Windows Settings / Control Panel |
+
+The domain contained regional Organizational Units (OUs) for USA, Europe, and Asia, with departmental OUs used to organize employee accounts and computers.
+
+## 3. Problem Description
+
+I created a GPO named `Restrict Control Panel` to test user restrictions.
+
+The configured setting was located at:
+
+**User Configuration → Policies → Administrative Templates → Control Panel → Prohibit access to Control Panel and PC settings**
+
+After applying the GPO, I discovered that the Domain Administrator account was also prevented from accessing Windows Settings.
+
+This behavior was unintended, as the restriction was designed for standard employee accounts.
+
+I attempted to disable and remove the GPO, but the restriction initially remained active.
+
+## 4. Investigation
+
+### Investigation 1 — Review policy configuration
+
+I examined the Group Policy configuration and identified that the restrictive GPO had been created using:
+
+**Create a GPO in this domain, and Link it here**
+
+The operation was performed directly on the `Turtle.local` domain object.
+
+This created a domain-level GPO link rather than limiting the policy to a specific employee OU.
+
+**Finding:** The GPO's scope was broader than intended.
+
+### Investigation 2 — Understand administrator policy application
+
+I reviewed how Group Policy applies to users and computers.
+
+Although the affected account had Domain Administrator privileges, applicable user policies could still restrict its Windows interface.
+
+**Finding:** Administrative privileges did not automatically exempt the account from the policy.
+
+### Investigation 3 — Remove the restriction and refresh Group Policy
+
+After disabling and removing the unwanted GPO link, the restriction initially persisted.
+
+I refreshed Group Policy using:
+
+```powershell
+gpupdate /force
+```
+
+**Result:** The policy refresh completed, and access to Windows Settings was restored.
+
+### Investigation 4 — Review GPO object storage
+
+During subsequent testing, I attempted to recreate the policy using the same name.
+
+Group Policy Management reported that a GPO with that name already existed.
+
+Further investigation established that I had removed the policy's link but not the underlying GPO stored in the Group Policy Objects container.
+
+**Finding:** Deleting a GPO link and deleting the GPO itself are separate administrative operations.
+
+## 5. Root Cause Analysis
+
+The Control Panel restriction was linked directly to the domain root instead of an OU containing only the intended employee accounts.
+
+As a result, the policy was eligible to apply to the administrator account through normal Group Policy processing.
+
+Removing the unwanted link and refreshing Group Policy restored access.
+
+The remaining GPO object explained why attempting to create another GPO with the same name resulted in a duplicate-name error.
+
+## 6. Resolution
+
+1. Identified the restrictive GPO.
+2. Disabled and removed the unintended domain-level link.
+3. Executed `gpupdate /force`.
+4. Verified that Windows Settings was accessible again.
+5. Reviewed the distinction between GPO links and stored Group Policy Objects.
+6. Began reorganizing experimental policies to target appropriate OUs.
+
+**Outcome:** Administrator access was restored without rebuilding the domain or reinstalling Windows Server.
+
+## 7. Lessons Learned
+
+- Domain Administrators can be affected by applicable Group Policies.
+- Linking a GPO at the domain root can affect a much broader population than intended.
+- Removing a GPO link does not delete the underlying policy object.
+- Group Policy changes may require a policy refresh or new logon session.
+- Restrictive policies should be tested against standard user accounts before wider deployment.
+
+## 8. Preventive Measures
+
+To reduce the likelihood of recurrence:
+
+- Keep experimental user GPOs linked to dedicated test or departmental OUs.
+- Keep Domain Administrator accounts outside ordinary employee testing OUs.
+- Use standard user accounts to test restrictive policies.
+- Verify GPO links and security filtering before enabling restrictions.
+- Use `gpresult /r` or Group Policy Results to examine effective GPO application.
+- Maintain a working administrative account for recovery.
+
+## 9. Conclusion
+
+This incident reinforced the importance of correctly scoping Group Policy Objects.
+
+The restriction functioned as configured, but the location of its domain-level link caused unintended administrative impact.
+
+The issue was resolved by correcting the policy link and refreshing Group Policy.
+
+The exercise provided practical experience with Group Policy troubleshooting, administrative account protection, and policy-scope management.
+
+---
+
+**Skills Demonstrated:** Active Directory · Group Policy · Windows Server Administration · GPO Scoping · Administrative Access Control · Troubleshooting
