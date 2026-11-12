@@ -80,6 +80,8 @@ BUILTIN\Administrators: (OI)(CI)(F)
 TURTLE\DL_Wallpapers_Read: (OI)(CI)(RX,W)
 ```
 
+<img width="593" height="133" alt="image" src="https://github.com/user-attachments/assets/8ac6aca5-0e4b-4b90-a933-0549a4fae60b" />
+
 The Administrators group had Full Control over the directory.
 
 This suggested that an elevated administrator process should be permitted to create and modify files.
@@ -117,6 +119,9 @@ Get-Item "$env:USERPROFILE\Desktop\company.jpg" |
 
 **Assessment:** The JPG's Read-only attribute did not explain the failure.
 
+<img width="522" height="114" alt="image" src="https://github.com/user-attachments/assets/ea340f7d-93ee-44b4-bd5b-b78e4cc2369a" />
+
+
 ### Investigation 4 — Verify source file readability
 
 **Objective:** Determine whether the administrator could successfully read the original JPG.
@@ -130,6 +135,9 @@ Get-FileHash "$env:USERPROFILE\Desktop\company.jpg"
 **Result:** A SHA-256 hash was successfully generated.
 
 **Assessment:** The original file was readable.
+
+<img width="977" height="108" alt="image" src="https://github.com/user-attachments/assets/3728b184-dcf3-4616-a3ae-71c3b7aac1fe" />
+
 
 ### Investigation 5 — Compare destination directories
 
@@ -146,9 +154,15 @@ Copy-Item "$env:USERPROFILE\Desktop\company.jpg" `
 
 **Result:** Successful.
 
+<img width="669" height="63" alt="image" src="https://github.com/user-attachments/assets/f2c49a35-569c-4419-94b4-0911ecffe46a" />
+
+
 I then attempted to copy the image into the Wallpapers directory using a different filename.
 
 **Result:** Access Denied.
+
+<img width="959" height="187" alt="image" src="https://github.com/user-attachments/assets/24ca19a1-cc34-401b-85dd-650dcf214a53" />
+
 
 **Assessment:** The problem was specific to the destination directory or a control affecting that directory. The source file itself was not the issue.
 
