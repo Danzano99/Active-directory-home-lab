@@ -1,0 +1,287 @@
+# Incident Report 004 — FSRM Management Console Crash and Inconsistent Quota Enumeration
+
+**Project:** Active Directory Home Lab  
+**Environment:** Windows Server 2022 | VMware Workstation Pro  
+**Domain:** Turtle.local  
+**Incident Type:** Windows Server Management Interface Failure  
+**Severity:** Moderate — Isolated Lab Environment  
+**Status:** Resolved  
+**Root Cause:** Undetermined — Temporary management-component issue suspected
+
+---
+
+## 1. Executive Summary
+
+While learning to configure storage quotas using File Server Resource Manager (FSRM), I encountered two unexpected management problems.
+
+First, the FSRM Microsoft Management Console (MMC) snap-in generated exceptions and crashed when I attempted to configure notification thresholds.
+
+Second, PowerShell commands intended to retrieve existing FSRM quotas returned no objects, even though the quotas were visible in the graphical console.
+
+Investigation confirmed that the FSRM service was running and that its native `dirquota` command-line utility could successfully enumerate and modify quotas.
+
+After installing VMware Tools and restarting the Windows Server 2022 virtual machine, both management interfaces began functioning normally.
+
+The precise cause of the original failures was not established.
+
+## 2. Environment
+
+| Component | Configuration |
+|---|---|
+| Operating system | Windows Server 2022 |
+| Virtualization | VMware Workstation Pro |
+| Domain | Turtle.local |
+| Server role | Active Directory Domain Controller |
+| Storage management | File Server Resource Manager |
+| PowerShell | Windows PowerShell 5.1, 64-bit |
+| Management tools | MMC, PowerShell, CIM, dirquota |
+| Test directory | `C:\FSRM-Test` |
+| Test quota | 100 MB |
+
+## 3. Problem Description
+
+I installed File Server Resource Manager to practice configuring storage quotas and quota notification thresholds.
+
+Creating quotas and quota templates was possible.
+
+However, attempting to add a notification threshold through the FSRM interface produced an MMC exception.
+
+An Event Viewer entry reported:
+
+```text
+An unexpected error occurred in the File Server
+Resource Manager MMC snap-in.
+
+Exception has been thrown by the target
+of an invocation.
+```
+
+Subsequent attempts resulted in an MMC error indicating that the snap-in would be unloaded.
+
+The problem occurred while configuring notification thresholds, rather than during ordinary quota creation.
+
+During troubleshooting, I also discovered that the FSRM PowerShell cmdlets were not returning existing quota objects.
+
+## 4. Troubleshooting Process
+
+### Investigation 1 — Verify the FSRM service
+
+I checked the File Server Resource Manager service:
+
+```powershell
+Get-Service -Name SrmSvc
+```
+
+**Result:** Running.
+
+**Assessment:** The FSRM service was operational, but this did not establish that every management function was working correctly.
+
+### Investigation 2 — Compare quota and template creation
+
+I attempted to create quota templates and quotas through the graphical console.
+
+**Results:**
+
+- Quota creation succeeded.
+- Quota templates could be created.
+- Notification-threshold editing produced exceptions.
+- The MMC snap-in eventually crashed when opening the notification editor.
+
+**Assessment:** The problem appeared to affect particular management operations rather than all FSRM functionality.
+
+### Investigation 3 — Test PowerShell quota enumeration
+
+I attempted to retrieve existing quotas:
+
+```powershell
+Get-FsrmQuota
+```
+
+The command returned no objects.
+
+To verify the result, I used:
+
+```powershell
+$quotas = @(Get-FsrmQuota -ErrorAction Stop)
+$quotas.Count
+```
+
+**Result:**
+
+```text
+0
+```
+
+This was unexpected because the MMC console displayed an existing quota for `C:\FSRM-Test`.
+
+### Investigation 4 — Verify the PowerShell environment
+
+I checked the PowerShell version and architecture:
+
+```powershell
+$PSVersionTable
+[Environment]::Is64BitProcess
+```
+
+**Results:**
+
+- Windows PowerShell version 5.1.
+- 64-bit process confirmed.
+
+I also verified that the `FileServerResourceManager` module was available.
+
+**Assessment:** The issue could not be explained by using an unsupported PowerShell edition or a 32-bit session.
+
+### Investigation 5 — Query FSRM through CIM
+
+I verified the FSRM CIM namespace and quota-related classes.
+
+I then queried the FSRM quota class directly:
+
+```powershell
+Get-CimInstance `
+    -Namespace "root/Microsoft/Windows/FSRM" `
+    -ClassName "MSFT_FSRMQuota" `
+    -ErrorAction Stop
+```
+
+**Result:** No quota objects were returned.
+
+**Assessment:** The missing objects were not limited to the higher-level `Get-FsrmQuota` PowerShell command.
+
+### Investigation 6 — Test native FSRM command-line tools
+
+To determine whether the underlying FSRM configuration was accessible through another management interface, I used:
+
+```cmd
+dirquota quota list
+```
+
+**Result:** Existing quotas were successfully listed.
+
+I also ran:
+
+```cmd
+dirquota template list
+```
+
+**Result:** Quota templates were successfully listed.
+
+These results demonstrated that FSRM's native command-line interface could access the quota configuration.
+
+### Investigation 7 — Modify a quota using dirquota
+
+I tested adding a quota threshold through the command-line utility:
+
+```cmd
+dirquota quota modify /path:"C:\FSRM-Test" /add-threshold:85
+```
+
+**Result:** Successful.
+
+I verified that the threshold had been added.
+
+**Assessment:** The service could process at least some quota-management changes even while the MMC and PowerShell interfaces were malfunctioning.
+
+### Investigation 8 — Restart the virtual machine
+
+During the troubleshooting process, I installed VMware Tools to enable clipboard integration between the physical host and the server VM.
+
+The virtual machine was restarted after installation.
+
+Following the restart, the FSRM graphical notification editor began functioning normally.
+
+I was able to configure an Event Log notification at the 50% quota threshold.
+
+I then repeated the PowerShell quota query:
+
+```powershell
+Get-FsrmQuota |
+    Format-List Path,Size,SoftLimit,Threshold
+```
+
+**Result:** The existing test quota and its threshold objects were returned successfully.
+
+## 5. Root Cause Analysis
+
+The precise root cause was not determined.
+
+The evidence indicated that:
+
+- The FSRM service remained running.
+- Quotas and templates were present and accessible through `dirquota`.
+- The MMC notification editor encountered exceptions.
+- PowerShell and direct CIM queries returned no quota objects.
+- A system restart preceded recovery of both management interfaces.
+
+A temporary problem involving FSRM management-component initialization or communication was considered possible.
+
+However, no specific malfunctioning component was conclusively identified.
+
+Because VMware Tools installation and a Windows restart occurred together, the investigation could not establish whether the Tools installation contributed to the recovery or whether restarting Windows alone would have resolved the problem.
+
+## 6. Resolution
+
+The following actions were performed:
+
+1. Verified that the FSRM service was running.
+2. Confirmed that quotas existed through the graphical console.
+3. Tested quota retrieval through PowerShell and CIM.
+4. Verified quotas and templates using `dirquota`.
+5. Successfully modified a test quota using the native command-line utility.
+6. Installed VMware Tools.
+7. Restarted the Windows Server 2022 VM.
+8. Reopened the FSRM management console.
+9. Successfully configured a notification threshold.
+10. Verified that PowerShell could once again enumerate the existing quota.
+
+**Outcome:** The management console and PowerShell quota retrieval functionality were restored without reinstalling FSRM or modifying its configuration database.
+
+## 7. Lessons Learned
+
+**Compare management interfaces**
+
+Using MMC, PowerShell, CIM, and `dirquota` helped determine which operations were functioning and which were failing.
+
+**A running service does not guarantee complete functionality**
+
+The FSRM service remained operational even while some management interfaces behaved unexpectedly.
+
+**Avoid unnecessary repairs**
+
+The investigation did not require deleting configuration files, rebuilding WMI, or reinstalling the FSRM role.
+
+**Document uncertainty**
+
+Although a restart restored functionality, the exact underlying cause remained unconfirmed.
+
+**Verify recovery**
+
+After the restart, I repeated previously failing operations to verify that the management interfaces were working again.
+
+## 8. Future Improvements
+
+For future troubleshooting exercises, I plan to:
+
+- Record relevant Event Viewer entries before restarting affected systems.
+- Compare service availability with management-interface functionality.
+- Document application and operating-system updates before troubleshooting.
+- Test non-destructive recovery methods before considering component repair.
+- Verify FSRM notification events after configuring quota thresholds.
+- Maintain a record of configuration changes and system restarts.
+
+## 9. Conclusion
+
+This incident demonstrated how Windows Server components can behave differently across their management interfaces.
+
+Although the FSRM service could create and manage quotas, the MMC interface crashed during notification configuration, while the PowerShell/CIM interface failed to enumerate existing quota objects.
+
+Testing with `dirquota` provided evidence that the underlying quota configuration remained accessible.
+
+Following a virtual machine restart, both the MMC and PowerShell interfaces recovered.
+
+The exercise strengthened my experience with Windows Server troubleshooting, PowerShell diagnostics, CIM, service verification, and technical root-cause investigation.
+
+---
+
+**Skills Demonstrated:** Windows Server 2022 · FSRM · PowerShell · CIM · MMC Troubleshooting · Event Viewer · Service Diagnostics · Root Cause Analysis
