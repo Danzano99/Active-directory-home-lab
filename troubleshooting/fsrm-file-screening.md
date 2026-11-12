@@ -184,6 +184,9 @@ The rule applied to the shared directory containing the Wallpapers folder.
 
 **Finding:** The JPG matched a prohibited file category and was being blocked by FSRM.
 
+<img width="762" height="142" alt="image" src="https://github.com/user-attachments/assets/f965ff83-d1a4-491c-8e35-c437d1b9d18c" />
+
+
 ## 5. Root Cause Analysis
 
 The root cause was an **FSRM active file screen configured to prevent image files from being saved within the shared-folder structure**.
